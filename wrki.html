@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Magic Face-Tracking Audio Visualizer</title>
+
+    <!-- Include TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <!-- Include A-Frame -->
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+
+    <style>
+      /* Make the video feed full-screen */
+      #videoElement {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        object-fit: cover;
+        z-index: 0;
+      }
+
+      /* Style for A-Frame and buttons */
+      a-scene {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 1;
+        pointer-events: none;
+      }
+
+      .floating-button {
+        position: fixed;
+        padding: 15px 20px;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 50px;
+        cursor: pointer;
+        font-size: 16px;
+        z-index: 2;
+      }
+
+      #startButton {
+        bottom: 60px;
+        right: 20px;
+      }
+
+      #endButton {
+        bottom: 20px;
+        right: 20px;
+        background-color: #f44336;
+      }
+
+      #endButton:hover {
+        background-color: #d32f2f;
+      }
+
+      #startButton:hover {
+        background-color: #45a049;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Full-screen webcam feed -->
+    <video id="videoElement" autoplay></video>
+
+    <!-- A-Frame Scene for Audio Visualizer -->
+    <a-scene embedded>
+      <a-entity id="visualizer" position="0 0 -2"></a-entity> <!-- Reset position for visibility -->
+      <a-entity camera></a-entity>
+    </a-scene>
+
+    <!-- Floating Buttons for Start and Stop -->
+    <button class="floating-button" id="startButton">Start</button>
+    <button class="floating-button" id="endButton" disabled>End</button>
+
+    <script>
+      let video;
+      let analyser;
+      let timeDomainData;
+      let animationId;
+
+      // Initialize video feed
+      async function initVideo() {
+        video = document.getElementById("videoElement");
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+        return new Promise(resolve => {
+          video.onloadedmetadata = () => resolve(video);
+        });
+      }
+
+      // Generate random color for each bar
+      function getRandomColor() {
+        const letters = "0123456789ABCDEF";
+        let color = "#";
+        for (let i = 0; i < 6; i++) {
+          color += letters[Math.floor(Math.random() * 16)];
+        }
+        return color;
+      }
+
+      // Function to start face detection and audio visualization
+      async function startVisualizer() {
+        const visualizer = document.querySelector("#visualizer");
+        const waveform = [];
+        const wavePointCount = 64; // Number of points in the waveform
+
+        // Create colorful cubes/lines for each point in the waveform
+        for (let i = 0; i < wavePointCount; i++) {
+          const point = document.createElement("a-box");
+          point.setAttribute("position", `${i * 0.2 - (wavePointCount * 0.2) / 2} 0 0`); // Spread bars horizontally
+          point.setAttribute("scale", "0.1 0.1 0.1"); // Set scale of bars
+          point.setAttribute("color", getRandomColor()); // Assign random color
+          visualizer.appendChild(point);
+          waveform.push(point);
+        }
+
+        await initVideo();
+
+        // Initialize Audio Context and Analyser
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioContext = new AudioContext();
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+        timeDomainData = new Uint8Array(analyser.fftSize);
+
+        // Get user media stream for audio (microphone)
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(audioStream => {
+          const audioSource = audioContext.createMediaStreamSource(audioStream);
+          audioSource.connect(analyser);
+        }).catch(err => console.error('Audio capture error:', err));
+
+        // Update visualizer based on audio data
+        async function updateVisualizer() {
+          analyser.getByteTimeDomainData(timeDomainData);
+
+          // Update each bar's height based on frequency
+          for (let i = 0; i < wavePointCount; i++) {
+            const value = timeDomainData[i] / 128 - 1;
+            const scaleY = Math.max(value * 2, 0.1); // Scale based on frequency
+            waveform[i].setAttribute("scale", `0.1 ${scaleY} 0.1`); // Update size
+            waveform[i].setAttribute("color", getRandomColor()); // New color for each bar
+          }
+
+          animationId = requestAnimationFrame(updateVisualizer);
+        }
+
+        updateVisualizer();
+
+        // Disable start button and enable end button
+        document.getElementById("startButton").disabled = true;
+        document.getElementById("endButton").disabled = false;
+      }
+
+      // Stop the visualizer
+      document.getElementById("endButton").addEventListener("click", function () {
+        if (animationId) {
+          cancelAnimationFrame(animationId);
+        }
+        document.getElementById("startButton").disabled = false;
+        document.getElementById("endButton").disabled = true;
+      });
+
+      // Start the visualizer when the "Start" button is clicked
+      document.getElementById("startButton").addEventListener("click", startVisualizer);
+    </script>
+  </body>
+</html>
+
+
+
+//basic gets audio input and gives 3d cubes through A-Frame js framwrok for ar experience on web browser
