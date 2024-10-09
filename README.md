@@ -1,10 +1,15 @@
-a baisc audio visualizer takes mic input and based on ifno extracted b and processed by web audio api.
-the output is given based on array of 3d cubes using A-frame 
+Reactive 3D Sound Visualizer with Face Tracking: A web app using TensorFlow.js, FaceMesh, and A-Frame. Activates when a face is detected through the webcam, captures audio with the Web Audio API, and visualizes it as 3D cubes that react to sound waves, synchronizing with the user's face movements.
 
+Tools Used:
+  TensorFlow.js: For real-time face detection using the FaceMesh model.
+  A-Frame: For creating and rendering 3D visualizations in the browser.
+  Web Audio API: For capturing and analyzing audio input from the user's microphone.
+  JavaScript: For integrating face detection, audio analysis, and controlling the 3D scene.
 
+Core Functionalities:
 
-wrki.html does a very basic output fuction of taking in the audio input alone .
-audio input tracker.py it shows the input of the frequenices taken for further processing .
-
-futher instalments can result in having face detection using tensorflow modles for tracking of the face which would result in postioning of the output
-also the kind of visulaizations that can be obtained(for e.g based on details of the audio stream 1.we can have particles of different colors moving in various speeds bouncing of the screen at extream boundaries, 2. more wavey like visulazations, 3.breaking down of concreate structures and other such visually appeling animations peratinging to ar throw a browser.)
+  Initializes the webcam feed using navigator.mediaDevices.getUserMedia.
+  Loads the FaceMesh model to detect facial features.
+  Sets up an audio context with an analyser node to process audio input from the microphone.
+  Positions the visualizer entity near the detected face, adjusting based on the nose's position.
+  Uses cubes (a-box elements) to represent audio waveform data, updating their scale and position according to the audio input.
