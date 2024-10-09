@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Face-Tracking Audio Visualizer</title>
+
+    <!-- Include TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <!-- Include FaceMesh model from TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/facemesh"></script>
+    <!-- Include A-Frame -->
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+
+    <style>
+      #videoElement {
+        width: 320px;
+        height: 240px;
+        position: absolute;
+      }
+
+      .floating-button {
+        position: fixed;
+        padding: 15px 20px;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 50px;
+        cursor: pointer;
+        font-size: 16px;
+        z-index: 1000;
+      }
+
+      #startButton {
+        bottom: 60px;
+        right: 20px;
+      }
+
+      #endButton {
+        bottom: 20px;
+        right: 20px;
+        background-color: #f44336;
+      }
+
+      #endButton:hover {
+        background-color: #d32f2f;
+      }
+
+      #startButton:hover {
+        background-color: #45a049;
+      }
+    </style>
+  </head>
+  <body>
+    <video id="videoElement" autoplay></video>
+
+    <!-- A-Frame Scene for Audio Visualizer -->
+    <a-scene>
+      <a-entity id="visualizer"></a-entity>
+      <a-entity camera></a-entity>
+    </a-scene>
+
+    <!-- Floating Buttons for Start and Stop -->
+    <button class="floating-button" id="startButton">Start</button>
+    <button class="floating-button" id="endButton" disabled>End</button>
+
+    <script>
+      let model;
+      let video;
+      let analyser;
+      let timeDomainData;
+      let animationId;
+
+      // Initialize video feed
+      async function initVideo() {
+        video = document.getElementById("videoElement");
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+        return new Promise(resolve => {
+          video.onloadedmetadata = () => resolve(video);
+        });
+      }
+
+      // Load FaceMesh model
+      async function loadFaceModel() {
+        return await facemesh.load();
+      }
+
+      // Function to start face detection and audio visualization
+      async function startVisualizer() {
+        const visualizer = document.querySelector("#visualizer");
+        const waveform = [];
+        const wavePointCount = 64; // Number of points in the waveform
+
+        // Create small cubes/lines for each point in the waveform
+        for (let i = 0; i < wavePointCount; i++) {
+          const point = document.createElement("a-box");
+          point.setAttribute("position", `${i * 0.1 - (wavePointCount * 0.05)} 0 0`);
+          point.setAttribute("scale", "0.1 0.1 0.1");
+          point.setAttribute("color", "#00FF00");
+          visualizer.appendChild(point);
+          waveform.push(point);
+        }
+
+        await initVideo();
+        model = await loadFaceModel();
+        console.log("Face model loaded. Starting detection...");
+
+        // Initialize Audio Context and Analyser (move this after face detection)
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioContext = new AudioContext();
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+        timeDomainData = new Uint8Array(analyser.fftSize);
+
+        // Get user media stream for audio (microphone)
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(audioStream => {
+          const audioSource = audioContext.createMediaStreamSource(audioStream);
+          audioSource.connect(analyser);
+        }).catch(err => console.error('Audio capture error:', err));
+
+        // Detect face and update visualizer based on the detected face
+        async function detectFace() {
+          const predictions = await model.estimateFaces(video);
+          if (predictions.length > 0) {
+            const face = predictions[0]; // Assume only one face is detected
+            const nose = face.scaledMesh[1]; // Nose tip (to position waveform near nose)
+
+            // Update the visualizer's position based on the face
+            const [x, y, z] = nose;
+            visualizer.setAttribute("position", `${x / 100 - 1} ${-y / 100 + 1} -2`);
+
+            // Update the waveform based on audio data
+            analyser.getByteTimeDomainData(timeDomainData);
+            for (let i = 0; i < wavePointCount; i++) {
+              const value = timeDomainData[i] / 128 - 1;
+              const scaleY = Math.max(value * 2, 0.1);
+              waveform[i].setAttribute("scale", `0.1 ${scaleY} 0.1`);
+              waveform[i].setAttribute("position", `${i * 0.1 - (wavePointCount * 0.05)} ${value} 0`);
+            }
+          }
+
+          animationId = requestAnimationFrame(detectFace);
+        }
+
+        detectFace();
+
+        // Disable start button and enable end button
+        document.getElementById("startButton").disabled = true;
+        document.getElementById("endButton").disabled = false;
+      }
+
+      // Stop the visualizer
+      document.getElementById("endButton").addEventListener("click", function () {
+        if (animationId) {
+          cancelAnimationFrame(animationId);
+        }
+        document.getElementById("startButton").disabled = false;
+        document.getElementById("endButton").disabled = true;
+      });
+
+      // Start the visualizer when the "Start" button is clicked
+      document.getElementById("startButton").addEventListener("click", startVisualizer);
+    </script>
+  </body>
+</html>
